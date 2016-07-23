@@ -22,11 +22,15 @@ var inputs = {
 };
 
 function init() {
+    var cell;
     for(var x=0; x<gridSize; x++) {
         cells.push([]);
         for(var y=0; y<gridSize; y++) {
             if(x < gridSize / 2 - 2 || x > gridSize / 2 + 2 || y > gridSize/2 - 2) {
-                cells[x].push(new entity(cellSize, cellSize, x * cellSize + halfSize, y * cellSize + halfSize));
+                cell = new entity(cellSize, cellSize, x * cellSize + halfSize, y * cellSize + halfSize);
+                cell.gx = x;
+                cell.gy = y;
+                cells[x].push(cell);
             } else {
                 cells[x].push(null);
             }
@@ -53,12 +57,7 @@ function init() {
     loop();
 }
 
-function loop() {
-    var enemy, vector;
-    var now = Date.now();
-    var delta = (now - timestamp) / 1000;
-    timestamp = now;
-
+function updatePlayer(delta) {
     if(inputs.left) {
         player.vx -= accel * delta;
     } else if(inputs.right) {
@@ -89,15 +88,49 @@ function loop() {
     player.x += player.vx * delta;
     player.y += player.vy * delta;
 
-    var cellX = Math.floor((player.x - halfSize) / cellSize);
-    var cellY = Math.floor((player.y - halfSize) / cellSize);
+    var hits = occupiedCells(player);
+    airborn = hits.length ? false : true;
 
-    airborn = true;
-
-    checkCollision(cellX, cellY, delta);
-    checkCollision(cellX + 1, cellY, delta);
-    checkCollision(cellX, cellY + 1, delta);
-    checkCollision(cellX + 1, cellY + 1, delta);
+    var hit, vector;
+    for(var i=0; i<hits.length; i++) {
+        cell = hits[i];
+        vector = cell.to(player);
+        if(vector.x === 0 && vector.y === 0) {
+            vector.x = cell.width;
+            vector.y = cell.height;
+        } else {
+            vector.x /= cell.width;
+            vector.y /= cell.height;
+        }
+        hit = false;
+        if(Math.abs(vector.x) > Math.abs(vector.y)) {
+            if(vector.x > 0) {
+                if(inputs.left) hit = true;
+                player.left(cell.right());
+            } else {
+                if(inputs.right) hit = true;
+                player.right(cell.left());
+            }
+            if(player.y < cell.top() || player.y > cell.bottom()) hit = false;
+            player.vx = 0;
+        } else {
+            if(vector.y > 0) {
+                if(inputs.up) hit = true;
+                player.top(cell.bottom());
+            } else {
+                if(inputs.down) hit = true;
+                player.bottom(cell.top());
+            }
+            if(player.x < cell.left() || player.x > cell.right()) hit = false;
+            player.vy = 0;
+        }
+        if(hit) {
+            cell.health -= damage * delta;
+            if(cell.health <= 0) {
+                cells[cell.gx][cell.gy] = null;
+            }
+        }
+    }
 
     if(player.left() < 0) {
         player.left(0);
@@ -114,9 +147,12 @@ function loop() {
         player.bottom(can.height);
         player.vy = 0;
     }
+}
 
-    for(var i=0; i<enemies.length; i++) {
-        enemy = enemies[i];
+function updateEnemies(delta) {
+    var enemy, vector, hits, cell;
+    for(var e=0; e<enemies.length; e++) {
+        enemy = enemies[e];
         vector = enemy.to(player);
         if(vector.x === 0 && vector.y === 0) {
             vector.x = 1;
@@ -137,90 +173,10 @@ function loop() {
         enemy.x += enemy.vx * delta;
         enemy.y += enemy.vy * delta;
 
-        var cellX = Math.floor((enemy.x - halfSize) / cellSize);
-        var cellY = Math.floor((enemy.y - halfSize) / cellSize);
-
-        enemyCollision(enemy, cellX, cellY);
-        enemyCollision(enemy, cellX + 1, cellY);
-        enemyCollision(enemy, cellX, cellY + 1);
-        enemyCollision(enemy, cellX + 1, cellY + 1);
-    }
-
-    ctx.clearRect(0, 0, can.width, can.height);
-    ctx.fillStyle = 'black';
-    player.rect(ctx);
-    for(var y=0; y<gridSize; y++) {
-        for(var x=0; x<gridSize; x++) {
-            if(cells[x][y]) {
-                if(cells[x][y].health <= 50) {
-                    ctx.fillStyle = 'orange';
-                } else {
-                    ctx.fillStyle = 'brown';
-                }
-                cells[x][y].rect(ctx);
-            }
-        }
-    }
-    ctx.fillStyle = 'green';
-    for(var i=0; i<enemies.length; i++) {
-        enemies[i].rect(ctx);
-    }
-
-    window.requestAnimationFrame(loop);
-}
-
-function checkCollision(x, y, delta) {
-    if(x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-        var cell = cells[x][y];
-        if(!cell) return;
-        if(collide(player, cell)) {
-            airborn = false;
-            var vector = cell.to(player);
-            if(vector.x === 0 && vector.y === 0) {
-                vector.x = cell.width;
-                vector.y = cell.height;
-            } else {
-                vector.x /= cell.width;
-                vector.y /= cell.height;
-            }
-            var hit = false;
-            if(Math.abs(vector.x) > Math.abs(vector.y)) {
-                if(vector.x > 0) {
-                    if(inputs.left) hit = true;
-                    player.left(cell.right());
-                } else {
-                    if(inputs.right) hit = true;
-                    player.right(cell.left());
-                }
-                if(player.y < cell.top() || player.y > cell.bottom()) hit = false;
-                player.vx = 0;
-            } else {
-                if(vector.y > 0) {
-                    if(inputs.up) hit = true;
-                    player.top(cell.bottom());
-                } else {
-                    if(inputs.down) hit = true;
-                    player.bottom(cell.top());
-                }
-                if(player.x < cell.left() || player.x > cell.right()) hit = false;
-                player.vy = 0;
-            }
-            if(hit) {
-                cell.health -= damage * delta;
-                if(cell.health <= 0) {
-                    cells[x][y] = null;
-                }
-            }
-        }
-    }
-}
-
-function enemyCollision(enemy, x, y) {
-    if(x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-        var cell = cells[x][y];
-        if(!cell) return;
-        if(collide(enemy, cell)) {
-            var vector = cell.to(enemy);
+        hits = occupiedCells(enemy);
+        for(var i=0; i<hits.length; i++) {
+            cell = hits[i];
+            vector = cell.to(enemy);
             if(vector.x === 0 && vector.y === 0) {
                 vector.x = cell.width;
                 vector.y = cell.height;
@@ -245,6 +201,71 @@ function enemyCollision(enemy, x, y) {
             }
         }
     }
+}
+
+function loop() {
+    var enemy, hits, cell, vector;
+    var now = Date.now();
+    var delta = (now - timestamp) / 1000;
+    timestamp = now;
+
+    updatePlayer(delta);
+
+    updateEnemies(delta);
+
+    ctx.clearRect(0, 0, can.width, can.height);
+    ctx.fillStyle = 'black';
+    player.rect(ctx);
+    for(var y=0; y<gridSize; y++) {
+        for(var x=0; x<gridSize; x++) {
+            if(cells[x][y]) {
+                if(cells[x][y].health <= 50) {
+                    ctx.fillStyle = 'orange';
+                } else {
+                    ctx.fillStyle = 'brown';
+                }
+                cells[x][y].rect(ctx);
+            }
+        }
+    }
+    ctx.fillStyle = 'green';
+    for(var i=0; i<enemies.length; i++) {
+        enemies[i].rect(ctx);
+    }
+
+    window.requestAnimationFrame(loop);
+}
+
+function occupiedCells(obj) {
+    var hits = [];
+    var pos = gridPosition(obj);
+
+    var cell;
+    for(var x=0; x<2; x++) {
+        for(var y=0; y<2; y++) {
+            if(!onGrid(pos.x + x, pos.y + y)) continue;
+            cell = cells[pos.x + x][pos.y + y];
+            if(!cell) continue;
+            if(collide(obj, cell)) {
+                hits.push(cell);
+            }
+        }
+    }
+
+    return hits;
+}
+
+function gridPosition(obj) {
+    var x = Math.floor((obj.x - halfSize) / cellSize);
+    var y = Math.floor((obj.y - halfSize) / cellSize);
+
+    return {x: x, y: y};
+}
+
+function onGrid(x, y) {
+    if(x >= 0 && x < gridSize && y >= 0 && y < gridSize) return true;
+
+    return false;
 }
 
 function keyDown(e) {
