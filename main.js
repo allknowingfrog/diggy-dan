@@ -26,7 +26,6 @@ function init() {
                 cells[x].push(new entity(cellSize, cellSize));
                 cells[x][y].x = x * cellSize;
                 cells[x][y].y = y * cellSize;
-                cells[x][y].color = 'red';
             } else {
                 cells[x].push(null);
             }
@@ -94,26 +93,26 @@ function loop() {
     checkCollision(cellX, cellY + 1, delta);
     checkCollision(cellX + 1, cellY + 1, delta);
 
-    if(player.getLeft() < 0) {
-        player.setLeft(0);
+    if(player.left() < 0) {
+        player.left(0);
         player.vx = 0;
-    } else if(player.getRight() > can.width) {
-        player.setRight(can.width);
+    } else if(player.right() > can.width) {
+        player.right(can.width);
         player.vx = 0;
     }
 
-    if(player.getTop() < 0) {
-        player.setTop(0);
+    if(player.top() < 0) {
+        player.top(0);
         player.vy = 0;
-    } else if(player.getBottom() > can.height) {
-        player.setBottom(can.height);
+    } else if(player.bottom() > can.height) {
+        player.bottom(can.height);
         player.vy = 0;
     }
 
     for(var i=0; i<enemies.length; i++) {
         enemy = enemies[i];
-        dx = player.getMidX() - enemy.getMidX();
-        dy = player.getMidY() - enemy.getMidY();
+        dx = player.x - enemy.x;
+        dy = player.y - enemy.y;
         if(dx != 0 && dy != 0) {
             if(Math.abs(dx) > Math.abs(dy)) {
                 dy /= Math.abs(dx);
@@ -148,16 +147,23 @@ function loop() {
     }
 
     ctx.clearRect(0, 0, can.width, can.height);
-    drawEntity(player);
+    ctx.fillStyle = 'black';
+    player.rect(ctx);
     for(var y=0; y<gridSize; y++) {
         for(var x=0; x<gridSize; x++) {
             if(cells[x][y]) {
-                drawEntity(cells[x][y]);
+                if(cells[x][y].health <= 50) {
+                    ctx.fillStyle = 'blue';
+                } else {
+                    ctx.fillStyle = 'red';
+                }
+                cells[x][y].rect(ctx);
             }
         }
     }
+    ctx.fillStyle = 'green';
     for(var i=0; i<enemies.length; i++) {
-        drawEntity(enemies[i]);
+        enemies[i].rect(ctx);
     }
 
     window.requestAnimationFrame(loop);
@@ -168,20 +174,20 @@ function checkCollision(x, y, delta) {
         var cell = cells[x][y];
         if(!cell) return;
         if(collide(player, cell)) {
-            var dx = (cell.getMidX() - player.getMidX()) / cell.width;
-            var dy = (cell.getMidY() - player.getMidY()) / cell.height;
+            var dx = (cell.x - player.x) / cell.width;
+            var dy = (cell.y - player.y) / cell.height;
             var hit = false;
             if(Math.abs(dx) > Math.abs(dy)) {
                 if(dx > 0) {
                     if(inputs.right) {
                         hit = true;
                     }
-                    player.setRight(cell.getLeft());
+                    player.right(cell.left());
                 } else {
                     if(inputs.left) {
                         hit = true;
                     }
-                    player.setLeft(cell.getRight());
+                    player.left(cell.right());
                 }
                 player.vx = 0;
             } else {
@@ -189,12 +195,12 @@ function checkCollision(x, y, delta) {
                     if(inputs.down) {
                         hit = true;
                     }
-                    player.setBottom(cell.getTop());
+                    player.bottom(cell.top());
                 } else {
                     if(inputs.up) {
                         hit = true;
                     }
-                    player.setTop(cell.getBottom());
+                    player.top(cell.bottom());
                 }
                 player.vy = 0;
             }
@@ -202,8 +208,6 @@ function checkCollision(x, y, delta) {
                 cell.health -= damage * delta;
                 if(cell.health <= 0) {
                     cells[x][y] = null;
-                } else if(cell.health <= 50) {
-                    cell.color = 'blue';
                 }
             }
         }
@@ -215,30 +219,25 @@ function enemyCollision(enemy, x, y) {
         var cell = cells[x][y];
         if(!cell) return;
         if(collide(enemy, cell)) {
-            var dx = (cell.getMidX() - enemy.getMidX()) / cell.width;
-            var dy = (cell.getMidY() - enemy.getMidY()) / cell.height;
+            var dx = (cell.x - enemy.x) / cell.width;
+            var dy = (cell.y - enemy.y) / cell.height;
             if(Math.abs(dx) > Math.abs(dy)) {
                 if(dx > 0) {
-                    enemy.setRight(cell.getLeft());
+                    enemy.right(cell.left());
                 } else {
-                    enemy.setLeft(cell.getRight());
+                    enemy.left(cell.right());
                 }
                 enemy.vx = 0;
             } else {
                 if(dy > 0) {
-                    enemy.setBottom(cell.getTop());
+                    enemy.bottom(cell.top());
                 } else {
-                    enemy.setTop(cell.getBottom());
+                    enemy.top(cell.bottom());
                 }
                 enemy.vy = 0;
             }
         }
     }
-}
-
-function drawEntity(obj) {
-    ctx.fillStyle = obj.color;
-    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
 }
 
 function keyDown(e) {
@@ -284,9 +283,9 @@ function keyUp(e) {
 }
 
 function collide(a, b) {
-    if(a.getLeft() > b.getRight()) return false;
-    if(a.getTop() > b.getBottom()) return false;
-    if(a.getRight() < b.getLeft()) return false;
-    if(a.getBottom() < b.getTop()) return false;
+    if(a.left() > b.right()) return false;
+    if(a.top() > b.bottom()) return false;
+    if(a.right() < b.left()) return false;
+    if(a.bottom() < b.top()) return false;
     return true;
 }
