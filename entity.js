@@ -42,6 +42,25 @@ function entity(width, height, x, y) {
         }
     };
 
+    this.to = function(obj) {
+        var dx = obj.x - this.x;
+        var dy = obj.y - this.y;
+        var ax = Math.abs(dx);
+        var ay = Math.abs(dy);
+        if(ax > ay) {
+            dy /= ax;
+            dx /= ax;
+        } else if(ay > 0) {
+            dx /= ay;
+            dy /= ay;
+        } else {
+            dx = 0;
+            dy = 0;
+        }
+
+        return {x: dx, y: dy};
+    }
+
     this.rect = function(ctx) {
         ctx.fillRect(this.x - halfWidth, this.y - halfHeight, width, height);
     };

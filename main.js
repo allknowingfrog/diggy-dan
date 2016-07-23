@@ -53,7 +53,7 @@ function init() {
 }
 
 function loop() {
-    var enemy, dx, dy;
+    var enemy, vector;
     var now = Date.now();
     var delta = (now - timestamp) / 1000;
     timestamp = now;
@@ -111,28 +111,22 @@ function loop() {
 
     for(var i=0; i<enemies.length; i++) {
         enemy = enemies[i];
-        dx = player.x - enemy.x;
-        dy = player.y - enemy.y;
-        if(dx != 0 && dy != 0) {
-            if(Math.abs(dx) > Math.abs(dy)) {
-                dy /= Math.abs(dx);
-                dx /= Math.abs(dx);
-            } else {
-                dx /= Math.abs(dy);
-                dy /= Math.abs(dy);
-            }
-            enemy.vx += accel * enemyMove * dx * delta;
-            enemy.vy += accel * enemyMove * dy * delta;
-            if(enemy.vx > velocity * enemyMove) {
-                enemy.vx = velocity * enemyMove;
-            } else if(enemy.vx < -velocity * enemyMove) {
-                enemy.vx = -velocity * enemyMove;
-            }
-            if(enemy.vy > velocity * enemyMove) {
-                enemy.vy = velocity * enemyMove;
-            } else if(enemy.vy < -velocity * enemyMove) {
-                enemy.vy = -velocity * enemyMove;
-            }
+        vector = enemy.to(player);
+        if(vector.x === 0 && vector.y === 0) {
+            vector.x = 1;
+            vector.y = 1;
+        }
+        enemy.vx += accel * enemyMove * vector.x * delta;
+        enemy.vy += accel * enemyMove * vector.y * delta;
+        if(enemy.vx > velocity * enemyMove) {
+            enemy.vx = velocity * enemyMove;
+        } else if(enemy.vx < -velocity * enemyMove) {
+            enemy.vx = -velocity * enemyMove;
+        }
+        if(enemy.vy > velocity * enemyMove) {
+            enemy.vy = velocity * enemyMove;
+        } else if(enemy.vy < -velocity * enemyMove) {
+            enemy.vy = -velocity * enemyMove;
         }
         enemy.x += enemy.vx * delta;
         enemy.y += enemy.vy * delta;
@@ -153,9 +147,9 @@ function loop() {
         for(var x=0; x<gridSize; x++) {
             if(cells[x][y]) {
                 if(cells[x][y].health <= 50) {
-                    ctx.fillStyle = 'blue';
+                    ctx.fillStyle = 'orange';
                 } else {
-                    ctx.fillStyle = 'red';
+                    ctx.fillStyle = 'brown';
                 }
                 cells[x][y].rect(ctx);
             }
@@ -174,34 +168,34 @@ function checkCollision(x, y, delta) {
         var cell = cells[x][y];
         if(!cell) return;
         if(collide(player, cell)) {
-            var dx = (cell.x - player.x) / cell.width;
-            var dy = (cell.y - player.y) / cell.height;
+            var vector = cell.to(player);
+            if(vector.x === 0 && vector.y === 0) {
+                vector.x = cell.width;
+                vector.y = cell.height;
+            } else {
+                vector.x /= cell.width;
+                vector.y /= cell.height;
+            }
             var hit = false;
-            if(Math.abs(dx) > Math.abs(dy)) {
-                if(dx > 0) {
-                    if(inputs.right) {
-                        hit = true;
-                    }
-                    player.right(cell.left());
-                } else {
-                    if(inputs.left) {
-                        hit = true;
-                    }
+            if(Math.abs(vector.x) > Math.abs(vector.y)) {
+                if(vector.x > 0) {
+                    if(inputs.left) hit = true;
                     player.left(cell.right());
+                } else {
+                    if(inputs.right) hit = true;
+                    player.right(cell.left());
                 }
+                if(player.y < cell.top() || player.y > cell.bottom()) hit = false;
                 player.vx = 0;
             } else {
-                if(dy > 0) {
-                    if(inputs.down) {
-                        hit = true;
-                    }
-                    player.bottom(cell.top());
-                } else {
-                    if(inputs.up) {
-                        hit = true;
-                    }
+                if(vector.y > 0) {
+                    if(inputs.up) hit = true;
                     player.top(cell.bottom());
+                } else {
+                    if(inputs.down) hit = true;
+                    player.bottom(cell.top());
                 }
+                if(player.x < cell.left() || player.x > cell.right()) hit = false;
                 player.vy = 0;
             }
             if(hit) {
