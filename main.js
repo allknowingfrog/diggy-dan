@@ -3,19 +3,22 @@ var ctx;
 var player = new entity(20, 20);
 var cells = [];
 var enemies = [];
+var airborn = true;
 var velocity = 100;
 var accel = 200;
+var gravity = 300;
+var friction = 1;
 var enemyMove = .9;
 var gridSize = 24;
 var cellSize = 28;
+var halfSize = cellSize / 2;
 var damage = 200;
 var timestamp;
 var inputs = {
     left: false,
     up: false,
     right: false,
-    down: false,
-    dig: false
+    down: false
 };
 
 function init() {
@@ -23,9 +26,7 @@ function init() {
         cells.push([]);
         for(var y=0; y<gridSize; y++) {
             if(x < gridSize / 2 - 2 || x > gridSize / 2 + 2 || y > gridSize/2 - 2) {
-                cells[x].push(new entity(cellSize, cellSize));
-                cells[x][y].x = x * cellSize;
-                cells[x][y].y = y * cellSize;
+                cells[x].push(new entity(cellSize, cellSize, x * cellSize + halfSize, y * cellSize + halfSize));
             } else {
                 cells[x].push(null);
             }
@@ -40,8 +41,8 @@ function init() {
     document.addEventListener('keyup', keyUp, false);
     player.x = can.width / 2;
     player.y = 0;
-    enemies.push(new entity(20, 20, 10 * cellSize, 15 * cellSize));
-    enemies.push(new entity(20, 20, 4 * cellSize, 15 * cellSize));
+    enemies.push(new entity(20, 20, 10 * cellSize, 15 * cellSize + halfSize));
+    enemies.push(new entity(20, 20, 4 * cellSize, 15 * cellSize + halfSize));
     cells[10][15] = null;
     cells[4][15] = null;
     for(var i=0; i<enemies.length; i++) {
@@ -62,12 +63,15 @@ function loop() {
         player.vx -= accel * delta;
     } else if(inputs.right) {
         player.vx += accel * delta;
+    } else {
+        player.vx -= player.vx * friction * delta;
     }
-    if(inputs.up) {
+
+    if(airborn) {
+        player.vy += gravity * delta;
+    } else if(inputs.up) {
         player.vy -= accel * delta;
     } else if(inputs.down) {
-        player.vy += accel * delta;
-    } else {
         player.vy += accel * delta;
     }
 
@@ -85,8 +89,10 @@ function loop() {
     player.x += player.vx * delta;
     player.y += player.vy * delta;
 
-    var cellX = Math.floor(player.x / cellSize);
-    var cellY = Math.floor(player.y / cellSize);
+    var cellX = Math.floor((player.x - halfSize) / cellSize);
+    var cellY = Math.floor((player.y - halfSize) / cellSize);
+
+    airborn = true;
 
     checkCollision(cellX, cellY, delta);
     checkCollision(cellX + 1, cellY, delta);
@@ -131,8 +137,8 @@ function loop() {
         enemy.x += enemy.vx * delta;
         enemy.y += enemy.vy * delta;
 
-        var cellX = Math.floor(enemy.x / cellSize);
-        var cellY = Math.floor(enemy.y / cellSize);
+        var cellX = Math.floor((enemy.x - halfSize) / cellSize);
+        var cellY = Math.floor((enemy.y - halfSize) / cellSize);
 
         enemyCollision(enemy, cellX, cellY);
         enemyCollision(enemy, cellX + 1, cellY);
@@ -168,6 +174,7 @@ function checkCollision(x, y, delta) {
         var cell = cells[x][y];
         if(!cell) return;
         if(collide(player, cell)) {
+            airborn = false;
             var vector = cell.to(player);
             if(vector.x === 0 && vector.y === 0) {
                 vector.x = cell.width;
@@ -213,20 +220,26 @@ function enemyCollision(enemy, x, y) {
         var cell = cells[x][y];
         if(!cell) return;
         if(collide(enemy, cell)) {
-            var dx = (cell.x - enemy.x) / cell.width;
-            var dy = (cell.y - enemy.y) / cell.height;
-            if(Math.abs(dx) > Math.abs(dy)) {
-                if(dx > 0) {
-                    enemy.right(cell.left());
-                } else {
+            var vector = cell.to(enemy);
+            if(vector.x === 0 && vector.y === 0) {
+                vector.x = cell.width;
+                vector.y = cell.height;
+            } else {
+                vector.x /= cell.width;
+                vector.y /= cell.height;
+            }
+            if(Math.abs(vector.x) > Math.abs(vector.y)) {
+                if(vector.x > 0) {
                     enemy.left(cell.right());
+                } else {
+                    enemy.right(cell.left());
                 }
                 enemy.vx = 0;
             } else {
-                if(dy > 0) {
-                    enemy.bottom(cell.top());
-                } else {
+                if(vector.y > 0) {
                     enemy.top(cell.bottom());
+                } else {
+                    enemy.bottom(cell.top());
                 }
                 enemy.vy = 0;
             }
@@ -249,9 +262,6 @@ function keyDown(e) {
         case 40:
             inputs.down = true;
             break;
-        case 32:
-            inputs.dig = true;
-            break;
     }
 }
 
@@ -269,9 +279,6 @@ function keyUp(e) {
             break;
         case 40:
             inputs.down = false;
-            break;
-        case 32:
-            inputs.dig = false;
             break;
     }
 }
